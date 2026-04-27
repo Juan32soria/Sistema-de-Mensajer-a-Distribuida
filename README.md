@@ -48,6 +48,3 @@ docker compose up --build
 
 Abrí `http://localhost` en el navegador.
 
-## Despliegue en producción
-
-Ver [`docs/DEPLOY_AWS.md`](docs/DEPLOY_AWS.md) para la guía completa de despliegue en AWS EC2 incluyendo HTTPS, backups y configuración de S3.
