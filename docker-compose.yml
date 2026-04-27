@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+
+  # ── Bases de datos ──────────────────────────────────────────────────────────
+
+  db_auth:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_AUTH}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata_auth:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${DB_AUTH}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  db_groups:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_GROUPS}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata_groups:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${DB_GROUPS}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  db_messages:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_MESSAGES}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata_messages:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${DB_MESSAGES}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Microservicios ──────────────────────────────────────────────────────────
+
+  auth:
+    build: ./auth-service/auth_service
+    restart: unless-stopped
+    environment:
+      DB_HOST: db_auth
+      DB_NAME: ${DB_AUTH}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY_AUTH}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+    command: sh -c "python manage.py makemigrations --noinput && python manage.py migrate --noinput && gunicorn --bind 0.0.0.0:8000 --workers 1 --timeout 60 auth_service.wsgi:application"
+    depends_on:
+      db_auth:
+        condition: service_healthy
+
+  groups:
+    build: ./groups-service/groups_service
+    restart: unless-stopped
+    environment:
+      DB_HOST: db_groups
+      DB_NAME: ${DB_GROUPS}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY_GROUPS}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+    command: sh -c "python manage.py makemigrations --noinput && python manage.py migrate --noinput && gunicorn --bind 0.0.0.0:8000 --workers 1 --timeout 60 groups_service.wsgi:application"
+    depends_on:
+      db_groups:
+        condition: service_healthy
+
+  messages:
+    build: ./messages-service/messages_service
+    restart: unless-stopped
+    environment:
+      DB_HOST: db_messages
+      DB_NAME: ${DB_MESSAGES}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY_MESSAGES}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      AWS_S3_REGION: ${AWS_S3_REGION}
+    command: sh -c "python manage.py makemigrations --noinput && python manage.py migrate --noinput && gunicorn --bind 0.0.0.0:8000 --workers 1 --timeout 60 messages_service.wsgi:application"
+    depends_on:
+      db_messages:
+        condition: service_healthy
+
+  # ── Nginx gateway + frontend ────────────────────────────────────────────────
+  # Builds the React app and serves it as static files alongside the API proxies.
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - auth
+      - groups
+      - messages
+
+# ── Volúmenes persistentes ──────────────────────────────────────────────────
+
+volumes:
+  pgdata_auth:
+  pgdata_groups:
+  pgdata_messages:

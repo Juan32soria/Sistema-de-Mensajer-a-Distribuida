@@ -1,0 +1,34 @@
+# Excluye archivos innecesarios del build context del contenedor nginx
+# (los servicios Django usan su propio .dockerignore local)
+
+# Python
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/venv
+**/env
+**/migrations/__pycache__
+
+# Node / Frontend
+**/node_modules
+frontend/dist
+
+# Git
+.git
+.gitignore
+
+# Secrets (docker-compose los lee directamente, no el build context)
+.env
+.env.*
+!.env.example
+
+# Documentación
+docs/
+README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
